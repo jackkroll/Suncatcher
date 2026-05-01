@@ -9,6 +9,7 @@ import Combine
 import Foundation
 import SwiftUI
 import CoreLocation
+import MapKit
 
 struct CloudForecast: Sendable {
     let modelName: String
@@ -245,6 +246,7 @@ struct CloudForecastService {
 @MainActor
 final class CloudForecastViewModel: ObservableObject {
     @Published var location: CLLocationCoordinate2D
+    @Published var locationName: String?
     @Published var forecast: CloudForecast?
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -270,6 +272,16 @@ final class CloudForecastViewModel: ObservableObject {
         } catch {
             forecast = nil
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+    
+    func fetchLocationName() async {
+        if let request = MKReverseGeocodingRequest(location:
+                                                    CLLocation(latitude: self.location.latitude,
+                                                               longitude: self.location.longitude)) {
+            if let mapItems = try? await request.mapItems {
+                locationName = mapItems.first?.addressRepresentations?.cityWithContext(.short)
+            }
         }
     }
 }

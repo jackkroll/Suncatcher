@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreLocation
+import MapKit
 
 struct DetailView: View {
     @StateObject var viewmodel : CloudForecastViewModel
@@ -14,7 +15,6 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             CloudCoverMeshBackground(cloudCover: viewmodel.forecast?.cloudCoverFraction ?? 0.5)
-
                 ScrollView {
                     VStack {
                         if let forecast: CloudForecast = viewmodel.forecast {
@@ -129,10 +129,14 @@ struct DetailView: View {
                 
         .onAppear {
             Task {
+                await viewmodel.fetchLocationName()
                 await viewmodel.loadForecast()
             }
         }
-        .navigationTitle("Location Name")
+        .navigationTitle(viewmodel.locationName ?? "City Name")
+        .animation(.easeInOut, value: viewmodel.locationName)
+        .navigationBarTitleDisplayMode(.large)
+    
     }
 }
 
@@ -216,8 +220,68 @@ private extension CloudForecast {
     }
 }
 
+struct ShortDetailView : View {
+    @StateObject var viewmodel : CloudForecastViewModel
+    @State var cloudCover: Double? = nil
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading){
+                Text(viewmodel.locationName ?? "City Name")
+                    .redacted(reason: viewmodel.locationName != nil ? [] : [.placeholder])
+                Text("\(viewmodel.location.latitude)°, \(viewmodel.location.longitude)°")
+                    .font(.caption)
+                    .fontDesign(.monospaced)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let cloudCover = cloudCover {
+                HStack {
+                    
+                    Text("\(Int((1-(cloudCover)) * 100))% Sunny")
+                        .fontDesign(.rounded)
+                        .fontWeight(.semibold)
+                    Image(systemName: "sun.max.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                    
+                }
+                
+                .padding(7)
+                .background(Material.thin)
+                .clipShape(Capsule())
+            }
+            
+            Image(systemName: "arrow.right.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 35, height: 35)
+            
+        }
+        .onAppear {
+            Task {
+                await viewmodel.loadForecast()
+                await viewmodel.fetchLocationName()
+                if let coverage = viewmodel.forecast?.hours.first?.coverage {
+                    cloudCover = coverage / 100
+                }
+            }
+
+        }
+        .padding()
+        .frame(maxWidth: 500)
+        .glassEffect(.regular.tint(.blue.mix(with: .gray, by: cloudCover ?? 0).opacity(0.5)))
+    }
+}
+
 #Preview {
     NavigationStack {
         DetailView(viewmodel: CloudForecastViewModel(location: CLLocationCoordinate2D(latitude: 42.3297, longitude: -83.0425)))
+    }
+}
+
+#Preview {
+    VStack {
+        ShortDetailView(viewmodel: CloudForecastViewModel(location: CLLocationCoordinate2D(latitude: 42.3297, longitude: -83.0425)))
     }
 }
