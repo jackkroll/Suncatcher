@@ -7,30 +7,48 @@
 
 import SwiftUI
 import MapKit
+import SwiftData
 
 struct ContentView: View {
-    let locations: [CLLocationCoordinate2D] = []
-    @State var searchText: String = ""
-    @State var cloudCover: CGFloat = 0
-    @State var addSheetIsPresented: Bool = false
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \SavedLocation.createdAt, order: .reverse) private var locations: [SavedLocation]
     var body: some View {
-        NavigationView {
-            VStack {
+        NavigationStack {
+            ScrollView {
                 if locations.isEmpty {
                     ContentUnavailableView("No Locations Added", systemImage: "mappin.and.ellipse", description: Text("Add a location to see its cloud cover forecast"))
                 }
-                ForEach(locations, id: \.latitude) { location in
-                    ShortDetailView(viewmodel: CloudForecastViewModel(location: location))
+
+                LazyVStack {
+                    ForEach(locations) { location in
+                        let viewmodel = CloudForecastViewModel(savedLocation: location)
+                        NavigationLink {
+                            DetailView(
+                                viewmodel: viewmodel
+                            )
+                        } label: {
+                            ShortDetailView(
+                                viewmodel: viewmodel
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                delete(location)
+                            } label: {
+                                Label("Delete Location", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
+                .padding()
             }
-            .sheet(isPresented: $addSheetIsPresented) {
-                AddLocationView()
-            }
+            .navigationTitle("Suncatcher")
             .toolbar {
                 ToolbarSpacer(.flexible, placement: .bottomBar)
                 ToolbarItem(placement: .bottomBar) {
-                    Button {
-                        addSheetIsPresented = true
+                    NavigationLink {
+                        AddLocationView()
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -38,8 +56,59 @@ struct ContentView: View {
             }
         }
     }
+
+    private func delete(_ location: SavedLocation) {
+        modelContext.delete(location)
+        try? modelContext.save()
+    }
 }
 
-#Preview {
+#Preview("No Locations") {
     ContentView()
+        .modelContainer(ContentViewPreviewData.container())
+}
+
+#Preview("One Location") {
+    ContentView()
+        .modelContainer(ContentViewPreviewData.container(with: [
+            SavedLocation(
+                latitude: 42.3314,
+                longitude: -83.0458
+            )
+        ]))
+}
+
+#Preview("Saved Locations") {
+    ContentView()
+        .modelContainer(ContentViewPreviewData.container(with: [
+            SavedLocation(
+                latitude: 42.3314,
+                longitude: -83.0458,
+                createdAt: .now
+            ),
+            SavedLocation(
+                latitude: 41.8781,
+                longitude: -87.6298,
+                createdAt: .now.addingTimeInterval(-60)
+            ),
+            SavedLocation(
+                latitude: 43.6532,
+                longitude: -79.3832,
+                createdAt: .now.addingTimeInterval(-120)
+            )
+        ]))
+}
+
+@MainActor
+private enum ContentViewPreviewData {
+    static func container(with locations: [SavedLocation] = []) -> ModelContainer {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: SavedLocation.self, configurations: configuration)
+
+        for location in locations {
+            container.mainContext.insert(location)
+        }
+
+        return container
+    }
 }

@@ -245,17 +245,22 @@ struct CloudForecastService {
 
 @MainActor
 final class CloudForecastViewModel: ObservableObject {
-    @Published var location: CLLocationCoordinate2D
+    @Published var savedLocation: SavedLocation
     @Published var locationName: String?
     @Published var forecast: CloudForecast?
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let service = CloudForecastService()
-    
-    init(location: CLLocationCoordinate2D) {
-        self.location = location
+
+    var location: CLLocationCoordinate2D {
+        savedLocation.coordinate
     }
+
+    init(savedLocation: SavedLocation) {
+        self.savedLocation = savedLocation
+    }
+
     func loadForecast() async {
         let previousErrorMessage = errorMessage
         isLoading = true

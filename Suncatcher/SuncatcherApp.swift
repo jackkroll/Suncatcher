@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct SuncatcherApp: App {
@@ -13,5 +14,6 @@ struct SuncatcherApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: SavedLocation.self)
     }
 }

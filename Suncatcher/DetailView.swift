@@ -8,8 +8,11 @@
 import SwiftUI
 import CoreLocation
 import MapKit
+import SwiftData
 
 struct DetailView: View {
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.modelContext) var modelContext
     @StateObject var viewmodel : CloudForecastViewModel
     @State var errorReload: Bool = false
     var body: some View {
@@ -116,6 +119,13 @@ struct DetailView: View {
                                     }
                                 }
                             }
+                        Button(role: .destructive) {
+                            deleteSavedLocation()
+                        } label: {
+                            Text("Remove from saved")
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonSizing(.flexible)
                     }
                     .padding()
                     .animation(.snappy(duration: 1), value: viewmodel.forecast != nil)
@@ -137,6 +147,12 @@ struct DetailView: View {
         .animation(.easeInOut, value: viewmodel.locationName)
         .navigationBarTitleDisplayMode(.large)
     
+    }
+
+    private func deleteSavedLocation() {
+        modelContext.delete(viewmodel.savedLocation)
+        try? modelContext.save()
+        dismiss()
     }
 }
 
@@ -228,7 +244,7 @@ struct ShortDetailView : View {
             VStack(alignment: .leading){
                 Text(viewmodel.locationName ?? "City Name")
                     .redacted(reason: viewmodel.locationName != nil ? [] : [.placeholder])
-                Text("\(viewmodel.location.latitude)°, \(viewmodel.location.longitude)°")
+                Text("\(viewmodel.location.latitude.formatted(.number.precision(.fractionLength(3))))°, \(viewmodel.location.longitude.formatted(.number.precision(.fractionLength(3))))°")
                     .font(.caption)
                     .fontDesign(.monospaced)
                     .foregroundStyle(.secondary)
@@ -276,12 +292,22 @@ struct ShortDetailView : View {
 
 #Preview {
     NavigationStack {
-        DetailView(viewmodel: CloudForecastViewModel(location: CLLocationCoordinate2D(latitude: 42.3297, longitude: -83.0425)))
+        DetailView(
+            viewmodel: CloudForecastViewModel(
+                savedLocation: SavedLocation(latitude: 42.3297, longitude: -83.0425)
+            )
+        )
     }
+    .modelContainer(for: SavedLocation.self, inMemory: true)
 }
 
 #Preview {
     VStack {
-        ShortDetailView(viewmodel: CloudForecastViewModel(location: CLLocationCoordinate2D(latitude: 42.3297, longitude: -83.0425)))
+        ShortDetailView(
+            viewmodel: CloudForecastViewModel(
+                savedLocation: SavedLocation(latitude: 42.3297, longitude: -83.0425)
+            )
+        )
+        .padding()
     }
 }

@@ -1,0 +1,69 @@
+{
+  "" : {
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/Suncatcher-primary.dia",
+    "emit-module-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/Suncatcher-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/Suncatcher-primary-emit-module.dia",
+    "pch" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/Suncatcher-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/Suncatcher-primary.swiftdeps"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/Suncatcher/AddLocationView.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/AddLocationView~partial.swiftmodule"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/Suncatcher/CloudForecastService.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/CloudForecastService~partial.swiftmodule"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/Suncatcher/ContentView.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/Suncatcher/DetailView.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/DetailView~partial.swiftmodule"
+  },
+  "/Users/jackkroll/doc/iOS/Suncatcher/Suncatcher/SuncatcherApp.swift" : {
+    "const-values" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.swiftconstvalues",
+    "dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.d",
+    "diagnostics" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.dia",
+    "index-unit-output-path" : "/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.o",
+    "llvm-bc" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.bc",
+    "object" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.o",
+    "swift-dependencies" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp.swiftdeps",
+    "swiftmodule" : "/Users/jackkroll/doc/iOS/Suncatcher/DerivedData/Build/Intermediates.noindex/Suncatcher.build/Debug-iphoneos/Suncatcher.build/Objects-normal/arm64/SuncatcherApp~partial.swiftmodule"
+  }
+}
