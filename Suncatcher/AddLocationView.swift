@@ -8,88 +8,136 @@
 import SwiftUI
 import MapKit
 import SwiftData
+import Combine
 
 struct AddLocationView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @State private var position: MapCameraPosition = .camera(Self.globeCamera)
-    @State private var cameraUpdateTask: Task<Void, Never>?
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var locationManager: LocationManager
+    @FocusState var searchIsFocused: Bool
+    @StateObject private var searchCompleter = LocationSearchCompleter()
     @State var searchText: String = ""
-    @State var searchResults : [MKMapItem] = []
+    @State private var resolvingCompletionKey: String?
+    @State private var errorMessage: String?
+    @State private var selectedModel = CloudForecastModel.defaultModel
+
     var body: some View {
         NavigationStack {
-            VStack {
-                Map(position: $position){
-                    ForEach(searchResults, id: \.identifier) { result in
-                        Marker(item: result)
-                    }
-                    UserAnnotation()
-                }
-                .searchable(text: $searchText)
-                .onChange(of: searchText) { _, newValue in
-                    search(for: newValue)
-                }
-                .onChange(of: searchResults.first?.cameraKey) { _, _ in
-                    guard let firstResult = searchResults.first else {
-                        cameraUpdateTask?.cancel()
-                        return
-                    }
+            Group {
+                if searchText.isEmpty {
+                    VStack(spacing: 16) {
+                        ContentUnavailableView("Search for a location", systemImage: "magnifyingglass")
 
-                    updateCamera(for: firstResult)
-                }
-                .mapStyle(.hybrid(elevation: .realistic))
-                .mapControlVisibility(.visible)
-
-            }
-            .safeAreaInset(edge: .bottom) {
-                    HStack {
-                        if let possibleLocation = searchResults.first {
-                            VStack {
-                                Text(possibleLocation.address?.fullAddress ?? "Address")
-                                    .font(.title3)
-                                Text(possibleLocation.location.coordinate.latitude.description + ", " + possibleLocation.location.coordinate.longitude.description)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                    .fontDesign(.monospaced)
-                            }
-                            Spacer()
-                            Button(role: .confirm) {
-                                add(possibleLocation)
+                        if let currentLocation = locationManager.currentLocation {
+                            Button {
+                                add(currentLocation)
                             } label: {
-                                Image(systemName: "plus")
-                                    .bold()
+                                Label("Use Current Location", systemImage: "location.fill")
                             }
-                            .padding()
-                            .buttonBorderShape(.circle)
-
-                            .buttonStyle(.glassProminent)
-                        }
-                        if searchResults.isEmpty {
-                            if searchText.isEmpty {
-                                ContentUnavailableView("Search to add a location", systemImage: "magnifyingglass")
-                            }
-                            else {
-                                ContentUnavailableView("No Results Found", systemImage: "exclamationmark.magnifyingglass")
-                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            LocationServicesSuggestionView(
+                                locationManager: locationManager,
+                                message: "You can also enable location services to always view the conditions for your current location."
+                            )
                         }
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: 100)
-                    .glassEffect(in: ConcentricRectangle(corners: .concentric(minimum: 30), isUniform: true))
-                    .animation(.easeInOut, value: searchText)
-                    .padding(.horizontal)
-                    .padding(.bottom)
                 }
+                else if searchCompleter.isSearching {
+                    ProgressView()
+                }
+                else if let errorMessage = errorMessage ?? searchCompleter.errorMessage {
+                    ContentUnavailableView("Search failed", systemImage: "exclamationmark.magnifyingglass", description: Text(errorMessage))
+                }
+                else if searchCompleter.completions.isEmpty {
+                    ContentUnavailableView("No results available for \"\(searchText)\"", systemImage: "magnifyingglass")
+                }
+                else {
+                    List {
+                        ForEach(searchCompleter.completions, id: \.self) { completion in
+                            Button {
+                                Task {
+                                    await add(completion)
+                                }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(completion.title)
+                                            .foregroundStyle(.primary)
 
+                                        if !completion.subtitle.isEmpty {
+                                            Text(completion.subtitle)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
 
+                                    Spacer()
+
+                                    if resolvingCompletionKey == key(for: completion) {
+                                        ProgressView()
+                                    }
+                                }
+                            }
+                            .disabled(resolvingCompletionKey != nil)
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .padding()
+            .onAppear {
+                searchIsFocused = true
+            }
+            .searchable(text: $searchText)
+            .searchFocused($searchIsFocused)
+            .onChange(of: searchText) { _, newValue in
+                errorMessage = nil
+                searchCompleter.queryFragment = newValue
+            }
+            .toolbar {
+                Button(role: .close) {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func add(_ completion: MKLocalSearchCompletion) async {
+        resolvingCompletionKey = key(for: completion)
+        defer {
+            resolvingCompletionKey = nil
+        }
+
+        do {
+            let request = MKLocalSearch.Request(completion: completion)
+            let search = MKLocalSearch(request: request)
+            let response = try await search.start()
+
+            if let mapItem = response.mapItems.first {
+                add(mapItem)
+            } else {
+                errorMessage = "No matching location could be resolved."
+            }
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
     private func add(_ mapItem: MKMapItem) {
         let coordinate = mapItem.location.coordinate
+        add(coordinate)
+    }
+
+    private func add(_ location: CLLocation) {
+        add(location.coordinate)
+    }
+
+    private func add(_ coordinate: CLLocationCoordinate2D) {
         let location = SavedLocation(
             latitude: coordinate.latitude,
-            longitude: coordinate.longitude
+            longitude: coordinate.longitude,
+            cloudForecastModel: selectedModel
         )
 
         modelContext.insert(location)
@@ -97,80 +145,57 @@ struct AddLocationView: View {
         dismiss()
     }
 
-    private static let globeCamera = MapCamera(
-        centerCoordinate: .init(latitude: 20, longitude: -80),
-        distance: 100_000_000
-    )
-
-    private static func overviewCamera(for coordinate: CLLocationCoordinate2D) -> MapCamera {
-        MapCamera(centerCoordinate: coordinate, distance: 100_000_000)
-    }
-
-    private static func locationCamera(for coordinate: CLLocationCoordinate2D) -> MapCamera {
-        MapCamera(centerCoordinate: coordinate, distance: 15_000, heading: 0, pitch: 45)
-    }
-
-    private func updateCamera(for mapItem: MKMapItem) {
-        cameraUpdateTask?.cancel()
-
-        let locationKey = mapItem.cameraKey
-        let coordinate = mapItem.location.coordinate
-
-        withAnimation(.easeInOut(duration: 1)) {
-            position = .camera(Self.overviewCamera(for: coordinate))
-        }
-
-        cameraUpdateTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                guard searchResults.first?.cameraKey == locationKey else { return }
-
-                withAnimation(.easeInOut(duration: 1)) {
-                    position = .camera(Self.locationCamera(for: coordinate))
-                }
-            }
-        }
-    }
-
-    private func search(for query: String) {
-        guard !query.isEmpty else {
-            cameraUpdateTask?.cancel()
-            cameraUpdateTask = nil
-            searchResults = []
-
-            withAnimation(.easeInOut(duration: 1)) {
-                position = .camera(Self.globeCamera)
-            }
-
-            return
-        }
-
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        request.resultTypes = .address
-        Task {
-            let search = MKLocalSearch(request: request)
-            let response = try? await search.start()
-
-            await MainActor.run {
-                guard query == searchText else { return }
-                searchResults = response?.mapItems ?? []
-            }
-        }
+    private func key(for completion: MKLocalSearchCompletion) -> String {
+        "\(completion.title)|\(completion.subtitle)"
     }
 }
 
-private extension MKMapItem {
-    var cameraKey: String {
-        let coordinate = location.coordinate
-        return "\(coordinate.latitude),\(coordinate.longitude),\(name ?? "")"
+private final class LocationSearchCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published var completions: [MKLocalSearchCompletion] = []
+    @Published var isSearching = false
+    @Published var errorMessage: String?
+
+    var queryFragment: String = "" {
+        didSet {
+            let trimmedQuery = queryFragment.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !trimmedQuery.isEmpty else {
+                completer.queryFragment = ""
+                completions = []
+                isSearching = false
+                errorMessage = nil
+                return
+            }
+
+            isSearching = true
+            errorMessage = nil
+            completer.queryFragment = trimmedQuery
+        }
+    }
+
+    private let completer = MKLocalSearchCompleter()
+
+    override init() {
+        super.init()
+        completer.resultTypes = .address
+        completer.delegate = self
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        completions = completer.results
+        isSearching = false
+        errorMessage = nil
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        completions = []
+        isSearching = false
+        errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
     }
 }
 
 #Preview {
-    AddLocationView()
+    
+    AddLocationView(locationManager: LocationManager())
         .modelContainer(for: SavedLocation.self, inMemory: true)
 }

@@ -12,6 +12,7 @@ import CoreLocation
 import MapKit
 
 struct CloudForecast: Sendable {
+    let model: CloudForecastModel
     let modelName: String
     let hours: [CloudForecastHour]
     let summary: String
@@ -69,17 +70,89 @@ enum CloudForecastError: LocalizedError {
     }
 }
 
+enum CloudForecastModel: String, CaseIterable, Identifiable, Sendable {
+    case hrdps
+    case rdps
+    case gdps
+    case gepsMedian
+
+    var id: String { rawValue }
+
+    static let defaultModel: CloudForecastModel = .hrdps
+
+    static func model(for id: String?) -> CloudForecastModel {
+        guard let id, let model = CloudForecastModel(rawValue: id) else {
+            return defaultModel
+        }
+
+        return model
+    }
+
+    var name: String {
+        switch self {
+        case .hrdps:
+            return "ECCC HRDPS 2.5 km"
+        case .rdps:
+            return "ECCC RDPS 10 km"
+        case .gdps:
+            return "ECCC GDPS 15 km"
+        case .gepsMedian:
+            return "ECCC GEPS median 39 km"
+        }
+    }
+
+    var menuTitle: String {
+        switch self {
+        case .hrdps:
+            return "HRDPS 2.5 km"
+        case .rdps:
+            return "RDPS 10 km"
+        case .gdps:
+            return "GDPS 15 km"
+        case .gepsMedian:
+            return "GEPS median 39 km"
+        }
+    }
+
+    var layerName: String {
+        switch self {
+        case .hrdps:
+            return "HRDPS.CONTINENTAL_NT"
+        case .rdps:
+            return "RDPS.ETA_NT"
+        case .gdps:
+            return "GDPS_15km_TotalCloudCover"
+        case .gepsMedian:
+            return "GEPS.DIAG.3_NT.ERC50"
+        }
+    }
+
+    var sampleStepHours: Int {
+        switch self {
+        case .gepsMedian:
+            return 3
+        default:
+            return 1
+        }
+    }
+
+    static let attributionFootnote = "Forecast model data: Government of Canada, Environment and Climate Change Canada, Meteorological Service of Canada."
+}
+
 struct CloudForecastService {
     private let session: URLSession
     private let baseURL = URL(string: "https://geo.weather.gc.ca/geomet")!
-    private let layerName = "HRDPS.CONTINENTAL_NT"
-    private let modelName = "ECCC HRDPS 2.5 km"
 
     init(session: URLSession = .shared) {
         self.session = session
     }
 
-    func fetchForecast(latitude: Double, longitude: Double, hours: Int = 12) async throws -> CloudForecast {
+    func fetchForecast(
+        latitude: Double,
+        longitude: Double,
+        model: CloudForecastModel,
+        samples: Int = 12
+    ) async throws -> CloudForecast {
         guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
             throw CloudForecastError.invalidLocation
         }
@@ -92,12 +165,17 @@ struct CloudForecastService {
         ) ?? Date()
 
         let hourlyValues = try await withThrowingTaskGroup(of: CloudForecastHour.self) { group in
-            for offset in 0..<hours {
-                let forecastTime = calendar.date(byAdding: .hour, value: offset, to: startTime) ?? startTime
+            for offset in 0..<samples {
+                let forecastTime = calendar.date(
+                    byAdding: .hour,
+                    value: offset * model.sampleStepHours,
+                    to: startTime
+                ) ?? startTime
                 group.addTask {
                     let coverage = try await fetchCloudCover(
                         latitude: latitude,
                         longitude: longitude,
+                        model: model,
                         forecastTime: forecastTime
                     )
                     return CloudForecastHour(time: forecastTime, coverage: coverage)
@@ -112,16 +190,23 @@ struct CloudForecastService {
         }
 
         return CloudForecast(
-            modelName: modelName,
+            model: model,
+            modelName: model.name,
             hours: hourlyValues,
             summary: summarize(hours: hourlyValues)
         )
     }
 
-    private func fetchCloudCover(latitude: Double, longitude: Double, forecastTime: Date) async throws -> Double {
+    private func fetchCloudCover(
+        latitude: Double,
+        longitude: Double,
+        model: CloudForecastModel,
+        forecastTime: Date
+    ) async throws -> Double {
         let requestURL = try makeFeatureInfoURL(
             latitude: latitude,
             longitude: longitude,
+            model: model,
             time: forecastTime
         )
 
@@ -136,12 +221,18 @@ struct CloudForecastService {
         return coverage
     }
 
-    private func makeFeatureInfoURL(latitude: Double, longitude: Double, time: Date?) throws -> URL {
+    private func makeFeatureInfoURL(
+        latitude: Double,
+        longitude: Double,
+        model: CloudForecastModel,
+        time: Date?
+    ) throws -> URL {
         let boxHalfWidth = 0.01
         let minLatitude = latitude - boxHalfWidth
         let maxLatitude = latitude + boxHalfWidth
         let minLongitude = longitude - boxHalfWidth
         let maxLongitude = longitude + boxHalfWidth
+        let layerName = model.layerName
 
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         var queryItems = [
@@ -207,18 +298,19 @@ struct CloudForecastService {
         let maximum = hours.map(\.coverage).max() ?? average
         let trend = last.coverage - first.coverage
 
+        let forecastWindow = forecastWindowDescription(for: hours)
         let opening: String
         switch average {
         case ..<15:
-            opening = "Mostly clear through the next \(hours.count) hours"
+            opening = "Mostly clear through the next \(forecastWindow)"
         case ..<35:
-            opening = "Mostly clear to partly cloudy through the next \(hours.count) hours"
+            opening = "Mostly clear to partly cloudy through the next \(forecastWindow)"
         case ..<60:
-            opening = "A mixed sky is likely through the next \(hours.count) hours"
+            opening = "A mixed sky is likely through the next \(forecastWindow)"
         case ..<80:
-            opening = "Mostly cloudy conditions look likely through the next \(hours.count) hours"
+            opening = "Mostly cloudy conditions look likely through the next \(forecastWindow)"
         default:
-            opening = "Cloud cover stays heavy through the next \(hours.count) hours"
+            opening = "Cloud cover stays heavy through the next \(forecastWindow)"
         }
 
         let trendText: String
@@ -232,6 +324,16 @@ struct CloudForecastService {
         }
 
         return "\(opening), ranging from \(Int(minimum.rounded()))% to \(Int(maximum.rounded()))% coverage. \(trendText)"
+    }
+
+    private func forecastWindowDescription(for hours: [CloudForecastHour]) -> String {
+        guard let first = hours.first, let last = hours.last else {
+            return "forecast period"
+        }
+
+        let elapsed = Calendar(identifier: .gregorian).dateComponents([.hour], from: first.time, to: last.time).hour ?? 0
+        let inclusiveHours = max(elapsed + 1, hours.count)
+        return "\(inclusiveHours) hours"
     }
 
     private static let iso8601Formatter: ISO8601DateFormatter = {
@@ -257,8 +359,26 @@ final class CloudForecastViewModel: ObservableObject {
         savedLocation.coordinate
     }
 
+    var selectedModel: CloudForecastModel {
+        get {
+            savedLocation.cloudForecastModel
+        }
+        set {
+            guard savedLocation.cloudForecastModel != newValue else { return }
+            objectWillChange.send()
+            savedLocation.cloudForecastModel = newValue
+            forecast = nil
+            errorMessage = nil
+        }
+    }
+
     init(savedLocation: SavedLocation) {
         self.savedLocation = savedLocation
+    }
+
+    func updateLocation(_ location: CLLocation) {
+        savedLocation.latitude = location.coordinate.latitude
+        savedLocation.longitude = location.coordinate.longitude
     }
 
     func loadForecast() async {
@@ -270,7 +390,11 @@ final class CloudForecastViewModel: ObservableObject {
         }
 
         do {
-            forecast = try await service.fetchForecast(latitude: location.latitude, longitude: location.longitude)
+            forecast = try await service.fetchForecast(
+                latitude: location.latitude,
+                longitude: location.longitude,
+                model: selectedModel
+            )
         } catch where error.isCancellation {
             errorMessage = previousErrorMessage
             return
