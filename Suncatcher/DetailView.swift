@@ -16,6 +16,7 @@ struct DetailView: View {
     @ObservedObject var viewmodel : CloudForecastViewModel
     @State var errorReload: Bool = false
     @State private var didLoadInitialForecast = false
+    @State var modelSelection: CloudForecastModel = .nws
     var locationManager: LocationManager?
     let isCurrentLocation: Bool
 
@@ -51,26 +52,28 @@ struct DetailView: View {
                         }
 
                         if let forecast: CloudForecast = viewmodel.forecast {
-                            Text(forecast.summary)
+                            Text(forecast.summarize())
                                 .font(.headline)
                             VStack {
                                 ForEach(forecast.hours) { hour in
-                                    HStack {
-                                        Text(hour.time, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
-                                            .frame(width: 64, alignment: .leading)
-                                        Text(hour.label)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                        Image(systemName: hour.imageName)
-                                            .bold()
-                                        Text("\(Int(hour.coverage.rounded()))%")
-                                            .monospacedDigit()
-                                            .foregroundStyle(.secondary)
+                                        HStack {
+                                            Text(hour.time, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+                                                .frame(width: 64, alignment: .leading)
+                                            Text(hour.label)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            Image(systemName: hour.imageName)
+                                                .bold()
+                                            Text("\(Int(hour.coverage.rounded()))%")
+                                                .monospacedDigit()
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .font(.subheadline)
+                                        .padding()
+                                        .background(Material.thinMaterial)
+                                        .clipShape(Capsule())
                                     }
-                                    .font(.subheadline)
-                                    .padding()
-                                    .glassEffect()
-                                }
                             }
+                            .redacted(reason: viewmodel.isLoading ? .invalidated : [])
                         }
                         else if let errorMessage = viewmodel.errorMessage {
                             ContentUnavailableView("An error occured",systemImage: "exclamationmark.triangle.fill", description: Text(errorMessage))
@@ -167,6 +170,7 @@ struct DetailView: View {
         }
                 
         .onAppear {
+            modelSelection = viewmodel.selectedModel
             guard !didLoadInitialForecast else { return }
             didLoadInitialForecast = true
 
@@ -179,8 +183,14 @@ struct DetailView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .bottomBar) {
-                CloudForecastModelSelectionForm(selection: selectedModelBinding)
-                    .fixedSize()
+                Picker("Model", selection: $modelSelection) {
+                    ForEach(CloudForecastModel.allCases) { model in
+                        Text(model.menuTitle)
+                            .tag(model)
+                    }
+                }
+                .fixedSize()
+                .pickerStyle(.menu)
             }
             ToolbarSpacer(.flexible, placement: .bottomBar)
             ToolbarItem(placement: .bottomBar) {
@@ -190,7 +200,15 @@ struct DetailView: View {
                     Image(systemName: "list.bullet")
                 }
             }
-            
+        }
+        .onChange(of: modelSelection) { _, newValue in
+            Task(priority: .userInitiated) {
+                viewmodel.selectedModel = newValue
+                await refreshForecast(recalculateCurrentLocation: false)
+            }
+        }
+        .onChange(of: modelSelection) { _, _ in
+            print("VM identity:", ObjectIdentifier(viewmodel))
         }
     
     }
@@ -209,17 +227,6 @@ struct DetailView: View {
         dismiss()
     }
 
-    private var selectedModelBinding: Binding<CloudForecastModel> {
-        Binding {
-            viewmodel.selectedModel
-        } set: { newModel in
-            viewmodel.selectedModel = newModel
-            try? modelContext.save()
-            Task {
-                await viewmodel.loadForecast()
-            }
-        }
-    }
 }
 
 struct CurrentLocationDetailView: View {
@@ -247,20 +254,7 @@ struct CurrentLocationDetailView: View {
     }
 }
 
-struct CloudForecastModelSelectionForm: View {
-    @Binding var selection: CloudForecastModel
 
-    var body: some View {
-            Picker("Model", selection: $selection) {
-                ForEach(CloudForecastModel.allCases) { model in
-                    Text(model.menuTitle)
-                        .tag(model)
-                }
-            }
-            .fixedSize()
-            .pickerStyle(.menu)
-    }
-}
 
 
 private struct CloudCoverMeshBackground: View {

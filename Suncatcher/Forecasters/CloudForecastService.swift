@@ -15,7 +15,55 @@ struct CloudForecast: Sendable {
     let model: CloudForecastModel
     let modelName: String
     let hours: [CloudForecastHour]
-    let summary: String
+    
+    func summarize(firstN: Int = 12) -> String {
+        let hours: [CloudForecastHour] = Array(hours.prefix(firstN))
+        guard let first = hours.first, let last = hours.last else {
+            return "No forecast hours available."
+        }
+
+        let average = hours.map(\.coverage).reduce(0, +) / Double(hours.count)
+        let minimum = hours.map(\.coverage).min() ?? average
+        let maximum = hours.map(\.coverage).max() ?? average
+        let trend = last.coverage - first.coverage
+
+        let forecastWindow = forecastWindowDescription(for: hours)
+        let opening: String
+        switch average {
+        case ..<15:
+            opening = "Mostly clear through the next \(forecastWindow)"
+        case ..<35:
+            opening = "Mostly clear to partly cloudy through the next \(forecastWindow)"
+        case ..<60:
+            opening = "A mixed sky is likely through the next \(forecastWindow)"
+        case ..<80:
+            opening = "Mostly cloudy conditions look likely through the next \(forecastWindow)"
+        default:
+            opening = "Cloud cover stays heavy through the next \(forecastWindow)"
+        }
+
+        let trendText: String
+        switch trend {
+        case let delta where delta <= -20:
+            trendText = "Clouds ease later in the window."
+        case let delta where delta >= 20:
+            trendText = "Clouds build as the period goes on."
+        default:
+            trendText = "Coverage stays fairly steady."
+        }
+
+        return "\(opening), ranging from \(Int(minimum.rounded()))% to \(Int(maximum.rounded()))% coverage. \(trendText)"
+    }
+
+    private func forecastWindowDescription(for hours: [CloudForecastHour]) -> String {
+        guard let first = hours.first, let last = hours.last else {
+            return "forecast period"
+        }
+
+        let elapsed = Calendar(identifier: .gregorian).dateComponents([.hour], from: first.time, to: last.time).hour ?? 0
+        let inclusiveHours = max(elapsed + 1, hours.count)
+        return "\(inclusiveHours) hours"
+    }
 }
 
 struct CloudForecastHour: Identifiable, Sendable {
@@ -71,6 +119,7 @@ enum CloudForecastError: LocalizedError {
 }
 
 enum CloudForecastModel: String, CaseIterable, Identifiable, Sendable {
+    case nws
     case hrdps
     case rdps
     case gdps
@@ -90,6 +139,8 @@ enum CloudForecastModel: String, CaseIterable, Identifiable, Sendable {
 
     var name: String {
         switch self {
+        case .nws:
+            return "NWS"
         case .hrdps:
             return "ECCC HRDPS 2.5 km"
         case .rdps:
@@ -103,6 +154,8 @@ enum CloudForecastModel: String, CaseIterable, Identifiable, Sendable {
 
     var menuTitle: String {
         switch self {
+        case .nws:
+            return "NWS"
         case .hrdps:
             return "HRDPS 2.5 km"
         case .rdps:
@@ -116,6 +169,8 @@ enum CloudForecastModel: String, CaseIterable, Identifiable, Sendable {
 
     var layerName: String {
         switch self {
+        case .nws:
+            return ""
         case .hrdps:
             return "HRDPS.CONTINENTAL_NT"
         case .rdps:
@@ -156,45 +211,50 @@ struct CloudForecastService {
         guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
             throw CloudForecastError.invalidLocation
         }
-
-        let calendar = Calendar(identifier: .gregorian)
-        let startTime = calendar.nextDate(
-            after: Date(),
-            matching: DateComponents(minute: 0, second: 0),
-            matchingPolicy: .nextTime
-        ) ?? Date()
-
-        let hourlyValues = try await withThrowingTaskGroup(of: CloudForecastHour.self) { group in
-            for offset in 0..<samples {
-                let forecastTime = calendar.date(
-                    byAdding: .hour,
-                    value: offset * model.sampleStepHours,
-                    to: startTime
-                ) ?? startTime
-                group.addTask {
-                    let coverage = try await fetchCloudCover(
-                        latitude: latitude,
-                        longitude: longitude,
-                        model: model,
-                        forecastTime: forecastTime
-                    )
-                    return CloudForecastHour(time: forecastTime, coverage: coverage)
-                }
-            }
-
-            var results: [CloudForecastHour] = []
-            for try await hour in group {
-                results.append(hour)
-            }
-            return results.sorted { $0.time < $1.time }
+        
+        if model == .nws {
+            return try await NWSForecastService(session: session).fetchForecast(latitude: latitude, longitude: longitude, hours: samples)
         }
-
-        return CloudForecast(
-            model: model,
-            modelName: model.name,
-            hours: hourlyValues,
-            summary: summarize(hours: hourlyValues)
-        )
+        else {
+            let calendar = Calendar(identifier: .gregorian)
+            let startTime = calendar.nextDate(
+                after: Date(),
+                matching: DateComponents(minute: 0, second: 0),
+                matchingPolicy: .nextTime
+            ) ?? Date()
+            
+            let hourlyValues = try await withThrowingTaskGroup(of: CloudForecastHour.self) { group in
+                for offset in 0..<samples {
+                    let forecastTime = calendar.date(
+                        byAdding: .hour,
+                        value: offset * model.sampleStepHours,
+                        to: startTime
+                    ) ?? startTime
+                    group.addTask {
+                        let coverage = try await fetchCloudCover(
+                            latitude: latitude,
+                            longitude: longitude,
+                            model: model,
+                            forecastTime: forecastTime
+                        )
+                        return CloudForecastHour(time: forecastTime, coverage: coverage)
+                    }
+                }
+                
+                var results: [CloudForecastHour] = []
+                for try await hour in group {
+                    results.append(hour)
+                }
+                return results.sorted { $0.time < $1.time }
+            }
+            
+            
+            return CloudForecast(
+                model: model,
+                modelName: model.name,
+                hours: hourlyValues
+            )
+        }
     }
 
     private func fetchCloudCover(
@@ -288,54 +348,6 @@ struct CloudForecastService {
         return String(valueStart[..<closingQuote])
     }
 
-    private func summarize(hours: [CloudForecastHour]) -> String {
-        guard let first = hours.first, let last = hours.last else {
-            return "No forecast hours available."
-        }
-
-        let average = hours.map(\.coverage).reduce(0, +) / Double(hours.count)
-        let minimum = hours.map(\.coverage).min() ?? average
-        let maximum = hours.map(\.coverage).max() ?? average
-        let trend = last.coverage - first.coverage
-
-        let forecastWindow = forecastWindowDescription(for: hours)
-        let opening: String
-        switch average {
-        case ..<15:
-            opening = "Mostly clear through the next \(forecastWindow)"
-        case ..<35:
-            opening = "Mostly clear to partly cloudy through the next \(forecastWindow)"
-        case ..<60:
-            opening = "A mixed sky is likely through the next \(forecastWindow)"
-        case ..<80:
-            opening = "Mostly cloudy conditions look likely through the next \(forecastWindow)"
-        default:
-            opening = "Cloud cover stays heavy through the next \(forecastWindow)"
-        }
-
-        let trendText: String
-        switch trend {
-        case let delta where delta <= -20:
-            trendText = "Clouds ease later in the window."
-        case let delta where delta >= 20:
-            trendText = "Clouds build as the period goes on."
-        default:
-            trendText = "Coverage stays fairly steady."
-        }
-
-        return "\(opening), ranging from \(Int(minimum.rounded()))% to \(Int(maximum.rounded()))% coverage. \(trendText)"
-    }
-
-    private func forecastWindowDescription(for hours: [CloudForecastHour]) -> String {
-        guard let first = hours.first, let last = hours.last else {
-            return "forecast period"
-        }
-
-        let elapsed = Calendar(identifier: .gregorian).dateComponents([.hour], from: first.time, to: last.time).hour ?? 0
-        let inclusiveHours = max(elapsed + 1, hours.count)
-        return "\(inclusiveHours) hours"
-    }
-
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -345,77 +357,8 @@ struct CloudForecastService {
 
 }
 
-@MainActor
-final class CloudForecastViewModel: ObservableObject {
-    @Published var savedLocation: SavedLocation
-    @Published var locationName: String?
-    @Published var forecast: CloudForecast?
-    @Published var isLoading = false
-    @Published var errorMessage: String?
 
-    private let service = CloudForecastService()
-
-    var location: CLLocationCoordinate2D {
-        savedLocation.coordinate
-    }
-
-    var selectedModel: CloudForecastModel {
-        get {
-            savedLocation.cloudForecastModel
-        }
-        set {
-            guard savedLocation.cloudForecastModel != newValue else { return }
-            objectWillChange.send()
-            savedLocation.cloudForecastModel = newValue
-            forecast = nil
-            errorMessage = nil
-        }
-    }
-
-    init(savedLocation: SavedLocation) {
-        self.savedLocation = savedLocation
-    }
-
-    func updateLocation(_ location: CLLocation) {
-        savedLocation.latitude = location.coordinate.latitude
-        savedLocation.longitude = location.coordinate.longitude
-    }
-
-    func loadForecast() async {
-        let previousErrorMessage = errorMessage
-        isLoading = true
-        errorMessage = nil
-        defer {
-            isLoading = false
-        }
-
-        do {
-            forecast = try await service.fetchForecast(
-                latitude: location.latitude,
-                longitude: location.longitude,
-                model: selectedModel
-            )
-        } catch where error.isCancellation {
-            errorMessage = previousErrorMessage
-            return
-        } catch {
-            forecast = nil
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
-    }
-    
-    func fetchLocationName() async {
-        if let request = MKReverseGeocodingRequest(location:
-                                                    CLLocation(latitude: self.location.latitude,
-                                                               longitude: self.location.longitude)) {
-            if let mapItems = try? await request.mapItems {
-                locationName = mapItems.first?.addressRepresentations?.cityWithContext(.short)
-            }
-        }
-    }
-}
-
-private extension Error {
+extension Error {
     var isCancellation: Bool {
         if self is CancellationError {
             return true
