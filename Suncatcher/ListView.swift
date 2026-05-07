@@ -29,19 +29,7 @@ struct ListView: View {
                         
                     }
                     ForEach(locations) { location in
-                        let viewmodel = CloudForecastViewModel(savedLocation: location)
-                        VStack(spacing: 8) {
-                            NavigationLink {
-                                DetailView(
-                                    viewmodel: viewmodel
-                                )
-                            } label: {
-                                ShortDetailView(
-                                    viewmodel: viewmodel
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        SavedLocationForecastRow(location: location)
                         .contextMenu {
                             Button(role: .destructive) {
                                 delete(location)
@@ -79,13 +67,25 @@ struct ListView: View {
         modelContext.delete(location)
         try? modelContext.save()
     }
+}
 
-    private func modelBinding(for viewmodel: CloudForecastViewModel) -> Binding<CloudForecastModel> {
-        Binding {
-            viewmodel.selectedModel
-        } set: { newModel in
-            viewmodel.selectedModel = newModel
-            try? modelContext.save()
+private struct SavedLocationForecastRow: View {
+    let location: SavedLocation
+    @StateObject private var viewmodel: CloudForecastViewModel
+
+    init(location: SavedLocation) {
+        self.location = location
+        _viewmodel = StateObject(wrappedValue: CloudForecastViewModel(savedLocation: location))
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            NavigationLink {
+                DetailView(viewmodel: viewmodel)
+            } label: {
+                ShortDetailView(viewmodel: viewmodel)
+            }
+            .buttonStyle(.plain)
         }
     }
 }

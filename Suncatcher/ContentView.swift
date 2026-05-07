@@ -9,14 +9,16 @@ import SwiftUI
 import CoreLocation
 
 struct ContentView: View {
-    @StateObject var locationManager = LocationManager()
+    @StateObject private var locationManager = LocationManager()
+    @AppStorage("preferredLocationModel") private var preferredLocationModel: CloudForecastModel = .hrdps
     var body: some View {
         NavigationStack {
             VStack {
                 if let userLocation = locationManager.currentLocation {
-                    CurrentLocationDetailView(
+                    CurrentLocationForecastView(
                         location: userLocation,
-                        locationManager: locationManager
+                        locationManager: locationManager,
+                        preferredLocationModel: preferredLocationModel
                     )
                 }
                 else {

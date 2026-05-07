@@ -17,6 +17,9 @@ struct DetailView: View {
     @State var errorReload: Bool = false
     @State private var didLoadInitialForecast = false
     @State var modelSelection: CloudForecastModel = .nws
+    @State var modelSelectionSheetIsPresented: Bool = false
+    @AppStorage("preferredLocationModel") private var preferredLocationModel: CloudForecastModel = .hrdps
+    @Namespace private var transition
     var locationManager: LocationManager?
     let isCurrentLocation: Bool
 
@@ -28,11 +31,12 @@ struct DetailView: View {
         self.viewmodel = viewmodel
         self.isCurrentLocation = isCurrentLocation
         self.locationManager = locationManager
+        _modelSelection = State(initialValue: viewmodel.selectedModel)
     }
 
     var body: some View {
         ZStack {
-            CloudCoverMeshBackground(cloudCover: viewmodel.forecast?.cloudCoverFraction ?? 0.5)
+            CloudCoverMeshBackground(cloudCover: viewmodel.currentForecast?.cloudCoverFraction ?? 0.5)
                 ScrollView {
                     VStack {
                         if isCurrentLocation {
@@ -51,27 +55,21 @@ struct DetailView: View {
                             .glassEffect()
                         }
 
-                        if let forecast: CloudForecast = viewmodel.forecast {
+                        if let forecast: CloudForecast = viewmodel.currentForecast {
                             Text(forecast.summarize())
                                 .font(.headline)
-                            VStack {
-                                ForEach(forecast.hours) { hour in
-                                        HStack {
-                                            Text(hour.time, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
-                                                .frame(width: 64, alignment: .leading)
-                                            Text(hour.label)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                            Image(systemName: hour.imageName)
-                                                .bold()
-                                            Text("\(Int(hour.coverage.rounded()))%")
-                                                .monospacedDigit()
-                                                .foregroundStyle(.secondary)
+                            LazyVStack(pinnedViews: [.sectionHeaders]) {
+                                ForEach(forecast.daySections) { section in
+                                    Section {
+                                        ForEach(section.hours) { hour in
+                                            ForecastHourRow(hour: hour)
                                         }
-                                        .font(.subheadline)
-                                        .padding()
-                                        .background(Material.thinMaterial)
-                                        .clipShape(Capsule())
+                                    } header: {
+                                        if !Calendar.current.isDateInToday(section.day) {
+                                            ForecastDaySeparator(date: section.day)
+                                        }
                                     }
+                                }
                             }
                             .redacted(reason: viewmodel.isLoading ? .invalidated : [])
                         }
@@ -83,7 +81,7 @@ struct DetailView: View {
                                         errorReload = true
                                     }
                                     try? await Task.sleep(nanoseconds: 1_000_000_000)
-                                    await refreshForecast(recalculateCurrentLocation: true)
+                                    await refreshForecast(recalculateCurrentLocation: true, forceReload: true)
                                     withAnimation {
                                         errorReload = false
                                     }
@@ -165,12 +163,11 @@ struct DetailView: View {
         }
                 .refreshable {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await refreshForecast(recalculateCurrentLocation: true)
+                    await refreshForecast(recalculateCurrentLocation: true, forceReload: true)
                 }
         }
                 
         .onAppear {
-            modelSelection = viewmodel.selectedModel
             guard !didLoadInitialForecast else { return }
             didLoadInitialForecast = true
 
@@ -181,44 +178,58 @@ struct DetailView: View {
         .navigationTitle(viewmodel.locationName ?? (isCurrentLocation ? "Current Location" : "City Name"))
         .animation(.easeInOut, value: viewmodel.locationName)
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $modelSelectionSheetIsPresented) {
+            ModelSelectionView(modelSelection: $modelSelection)
+                .presentationDetents([.fraction(3/4)])
+                .navigationTransition(
+                            .zoom(sourceID: "modelSelection", in: transition)
+                        )
+        }
         .toolbar {
             ToolbarItem(placement: .bottomBar) {
-                Picker("Model", selection: $modelSelection) {
-                    ForEach(CloudForecastModel.allCases) { model in
-                        Text(model.menuTitle)
-                            .tag(model)
+                Button {
+                    withAnimation {
+                        modelSelectionSheetIsPresented.toggle()
                     }
-                }
-                .fixedSize()
-                .pickerStyle(.menu)
-            }
-            ToolbarSpacer(.flexible, placement: .bottomBar)
-            ToolbarItem(placement: .bottomBar) {
-                NavigationLink {
-                    ListView(locationManager: LocationManager())
                 } label: {
-                    Image(systemName: "list.bullet")
+                    Text(modelSelection.menuTitle)
+                        .fixedSize()
+                }
+                .matchedTransitionSource(id: "modelSelection", in: transition)
+            }
+            
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            if isCurrentLocation {
+                ToolbarItem(placement: .bottomBar) {
+                    NavigationLink {
+                        ListView(locationManager: LocationManager())
+                    } label: {
+                        Image(systemName: "list.bullet")
+                    }
                 }
             }
         }
         .onChange(of: modelSelection) { _, newValue in
+            viewmodel.selectedModel = newValue
+
             Task(priority: .userInitiated) {
-                viewmodel.selectedModel = newValue
                 await refreshForecast(recalculateCurrentLocation: false)
             }
-        }
-        .onChange(of: modelSelection) { _, _ in
-            print("VM identity:", ObjectIdentifier(viewmodel))
+            if isCurrentLocation {
+                preferredLocationModel = newValue
+            } else {
+                try? modelContext.save()
+            }
         }
     
     }
 
-    private func refreshForecast(recalculateCurrentLocation: Bool) async {
+    private func refreshForecast(recalculateCurrentLocation: Bool, forceReload: Bool = false) async {
         if recalculateCurrentLocation, isCurrentLocation, let locationManager, let currentLocation = await locationManager.currentLocationRequest() {
             viewmodel.updateLocation(currentLocation)
         }
+        await viewmodel.loadForecast(force: forceReload)
         await viewmodel.fetchLocationName()
-        await viewmodel.loadForecast()
     }
 
     private func deleteSavedLocation() {
@@ -229,20 +240,106 @@ struct DetailView: View {
 
 }
 
-struct CurrentLocationDetailView: View {
+private struct ForecastDaySection: Identifiable {
+    let day: Date
+    var hours: [CloudForecastHour]
+
+    var id: Date {
+        day
+    }
+}
+
+private struct ForecastDaySeparator: View {
+    let date: Date
+
+    private var title: String {
+        if Calendar.current.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+
+        return date.formatted(.dateTime.weekday(.wide).month(.wide).day())
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Rectangle()
+                .fill(.secondary.opacity(0.25))
+                .frame(height: 1)
+
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+
+            Rectangle()
+                .fill(.secondary.opacity(0.25))
+                .frame(height: 1)
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+private struct ForecastHourRow: View {
+    let hour: CloudForecastHour
+
+    var body: some View {
+        HStack {
+            Text(hour.time, format: .dateTime.hour(.defaultDigits(amPM: .abbreviated)))
+                .frame(width: 64, alignment: .leading)
+            Text(hour.label)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: hour.imageName)
+                .bold()
+            Text("\(Int(hour.coverage.rounded()))%")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline)
+        .padding()
+        .background(Material.thinMaterial)
+        .clipShape(Capsule())
+    }
+}
+
+struct CurrentLocationForecastView: View {
     @ObservedObject var locationManager: LocationManager
     @StateObject private var viewmodel: CloudForecastViewModel
+    let location: CLLocation
 
-    init(location: CLLocation, locationManager: LocationManager) {
+    init(location: CLLocation, locationManager: LocationManager, preferredLocationModel: CloudForecastModel) {
+        self.location = location
         self.locationManager = locationManager
         _viewmodel = StateObject(
             wrappedValue: CloudForecastViewModel(
                 savedLocation: SavedLocation(
                     latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude
+                    longitude: location.coordinate.longitude,
+                    cloudForecastModel: preferredLocationModel
                 )
             )
         )
+    }
+
+    var body: some View {
+        CurrentLocationDetailView(
+            location: location,
+            locationManager: locationManager,
+            viewmodel: viewmodel
+        )
+    }
+}
+
+private struct CurrentLocationDetailView: View {
+    @ObservedObject var locationManager: LocationManager
+    @ObservedObject var viewmodel: CloudForecastViewModel
+    let location: CLLocation
+
+    init(location: CLLocation, locationManager: LocationManager, viewmodel: CloudForecastViewModel) {
+        self.location = location
+        self.locationManager = locationManager
+        self.viewmodel = viewmodel
     }
 
     var body: some View {
@@ -251,6 +348,9 @@ struct CurrentLocationDetailView: View {
             isCurrentLocation: true,
             locationManager: locationManager
         )
+        .task(id: location.forecastIdentity) {
+            viewmodel.updateLocation(location)
+        }
     }
 }
 
@@ -335,15 +435,32 @@ private extension CloudForecast {
         let averageCoverage = hours.map(\.coverage).reduce(0, +) / Double(hours.count)
         return min(max(averageCoverage / 100, 0), 1)
     }
+
+    var daySections: [ForecastDaySection] {
+        let calendar = Calendar.current
+        var sections: [ForecastDaySection] = []
+
+        for hour in hours {
+            let day = calendar.startOfDay(for: hour.time)
+
+            if sections.last?.day == day {
+                sections[sections.count - 1].hours.append(hour)
+            } else {
+                sections.append(ForecastDaySection(day: day, hours: [hour]))
+            }
+        }
+
+        return sections
+    }
 }
 
 struct ShortDetailView : View {
-    @StateObject var viewmodel : CloudForecastViewModel
+    @ObservedObject var viewmodel : CloudForecastViewModel
     @State var cloudCover: Double? = nil
     let isCurrentLocation: Bool
 
     init(viewmodel: CloudForecastViewModel, isCurrentLocation: Bool = false) {
-        _viewmodel = StateObject(wrappedValue: viewmodel)
+        self.viewmodel = viewmodel
         self.isCurrentLocation = isCurrentLocation
     }
 
@@ -425,12 +542,23 @@ struct ShortDetailView : View {
     }
 
     private func loadPreviewForecast() async {
-        cloudCover = nil
+        if !viewmodel.hasForecastForCurrentLocationAndModel {
+            cloudCover = nil
+        }
+
         await viewmodel.loadForecast()
         await viewmodel.fetchLocationName()
         if let coverage = viewmodel.forecast?.hours.first?.coverage {
             cloudCover = coverage / 100
         }
+    }
+}
+
+private extension CLLocation {
+    var forecastIdentity: String {
+        let latitude = (coordinate.latitude * 10_000).rounded() / 10_000
+        let longitude = (coordinate.longitude * 10_000).rounded() / 10_000
+        return "\(latitude),\(longitude)"
     }
 }
 

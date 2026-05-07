@@ -19,7 +19,7 @@ struct AddLocationView: View {
     @State var searchText: String = ""
     @State private var resolvingCompletionKey: String?
     @State private var errorMessage: String?
-    @State private var selectedModel = CloudForecastModel.defaultModel
+    @AppStorage("preferredLocationModel") private var selectedModel: CloudForecastModel = CloudForecastModel.defaultModel
 
     var body: some View {
         NavigationStack {

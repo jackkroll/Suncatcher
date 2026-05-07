@@ -216,12 +216,9 @@ struct CloudForecastService {
             return try await NWSForecastService(session: session).fetchForecast(latitude: latitude, longitude: longitude, hours: samples)
         }
         else {
-            let calendar = Calendar(identifier: .gregorian)
-            let startTime = calendar.nextDate(
-                after: Date(),
-                matching: DateComponents(minute: 0, second: 0),
-                matchingPolicy: .nextTime
-            ) ?? Date()
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+            let startTime = nextForecastTime(after: Date(), stepHours: model.sampleStepHours, calendar: calendar)
             
             let hourlyValues = try await withThrowingTaskGroup(of: CloudForecastHour.self) { group in
                 for offset in 0..<samples {
@@ -279,6 +276,26 @@ struct CloudForecastService {
         }
 
         return coverage
+    }
+
+    private func nextForecastTime(after date: Date, stepHours: Int, calendar: Calendar) -> Date {
+        let stepHours = max(stepHours, 1)
+        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .nanosecond], from: date)
+
+        if (components.minute ?? 0) > 0 || (components.second ?? 0) > 0 || (components.nanosecond ?? 0) > 0 {
+            components.hour = (components.hour ?? 0) + 1
+        }
+
+        components.minute = 0
+        components.second = 0
+        components.nanosecond = 0
+
+        var forecastTime = calendar.date(from: components) ?? date
+        while calendar.component(.hour, from: forecastTime) % stepHours != 0 {
+            forecastTime = calendar.date(byAdding: .hour, value: 1, to: forecastTime) ?? forecastTime
+        }
+
+        return forecastTime
     }
 
     private func makeFeatureInfoURL(
